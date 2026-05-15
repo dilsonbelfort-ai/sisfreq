@@ -679,17 +679,7 @@ select option { background:var(--navy-mid); }
             <label>Observações (opcional)</label>
             <textarea id="f-obs" placeholder="Informações adicionais relevantes..." style="min-height:65px"></textarea>
           </div>
-          <div class="fgroup span2">
-            <label>📷 Fotos do Dia <span style="font-weight:400;color:var(--text-muted)">(até 5 fotos — aparecem no relatório)</span></label>
-            <div id="foto-drop" onclick="document.getElementById('f-fotos').click()"
-              style="border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--navy)">
-              <div style="font-size:2rem;margin-bottom:8px">📷</div>
-              <div style="font-size:.85rem;color:var(--text-muted)">Clique para selecionar fotos</div>
-              <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px">JPG, PNG — máximo 5 fotos</div>
-            </div>
-            <input type="file" id="f-fotos" accept="image/*" multiple style="display:none" onchange="previewFotos(this)">
-            <div id="foto-preview" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px"></div>
-          </div>
+
           <div class="fgroup span2" style="flex-direction:row;justify-content:flex-end;gap:10px;align-items:center">
             <button class="btn btn-ghost" onclick="clearForm()">Limpar</button>
             <button class="btn btn-primary btn-lg" id="btn-salvar" onclick="salvar()">💾 Salvar Registro</button>
@@ -1235,63 +1225,11 @@ function initForm() {
   document.getElementById('f-inicio').value = t;
 }
 
-let fotosBase64 = []; // store photos as base64
-
 function clearForm() {
   ['f-modal','f-inicio','f-fim','f-local','f-atend','f-ativ','f-obs'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  fotosBase64 = [];
-  document.getElementById('f-fotos').value = '';
-  document.getElementById('foto-preview').innerHTML = '';
-}
-
-function previewFotos(input) {
-  const files = Array.from(input.files).slice(0, 5);
-  fotosBase64 = [];
-  const preview = document.getElementById('foto-preview');
-  preview.innerHTML = '';
-
-  files.forEach((file, i) => {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      fotosBase64[i] = e.target.result;
-      const wrap = document.createElement('div');
-      wrap.style.cssText = 'position:relative;width:90px;height:90px;';
-      wrap.innerHTML = `
-        <img src="${e.target.result}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">
-        <button onclick="removeFoto(${i})" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--red);border:none;color:white;cursor:pointer;font-size:.7rem;display:flex;align-items:center;justify-content:center">✕</button>
-      `;
-      preview.appendChild(wrap);
-    };
-    reader.readAsDataURL(file);
-  });
-
-  if (files.length > 0) {
-    document.getElementById('foto-drop').style.borderColor = 'var(--green)';
-    document.getElementById('foto-drop').style.background = 'rgba(16,185,129,0.05)';
-  }
-}
-
-function removeFoto(idx) {
-  fotosBase64.splice(idx, 1);
-  // Re-render preview
-  const preview = document.getElementById('foto-preview');
-  preview.innerHTML = '';
-  fotosBase64.forEach((b64, i) => {
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:relative;width:90px;height:90px;';
-    wrap.innerHTML = `
-      <img src="${b64}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">
-      <button onclick="removeFoto(${i})" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--red);border:none;color:white;cursor:pointer;font-size:.7rem;display:flex;align-items:center;justify-content:center">✕</button>
-    `;
-    preview.appendChild(wrap);
-  });
-  if (fotosBase64.length === 0) {
-    document.getElementById('foto-drop').style.borderColor = 'var(--border)';
-    document.getElementById('foto-drop').style.background = 'var(--navy)';
-  }
 }
 
 async function salvar() {
@@ -1338,7 +1276,6 @@ async function salvar() {
       atendidos:     atend,
       atividades:    ativ,
       observacoes:   obs,
-      fotos:         fotosBase64.slice(0,5),
       mes:           dt.getMonth(),
       ano:           dt.getFullYear(),
     });
@@ -1532,7 +1469,7 @@ async function loadRel() {
           <table>
             <thead><tr>
               <th>Data</th><th>Dia</th><th>Modalidade</th><th>Horário</th>
-              <th>Pessoas Atendidas</th><th>Atividades Realizadas</th><th>Observações</th><th>Fotos</th>
+              <th>Pessoas Atendidas</th><th>Atividades Realizadas</th><th>Observações</th>
             </tr></thead>
             <tbody>
               ${recs.map(r => {
@@ -1567,7 +1504,6 @@ async function loadRel() {
                   <td style="font-size:.8rem;max-width:200px">${r.atendidos}</td>
                   <td style="font-size:.8rem;max-width:220px">${r.atividades}</td>
                   <td style="font-size:.78rem" class="muted">${r.observacoes||'—'}</td>
-                  <td>${r.fotos && r.fotos.length ? r.fotos.map(f=>`<img src="${f}" style="width:50px;height:50px;object-fit:cover;border-radius:4px;margin:2px">`).join('') : '—'}</td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -1680,13 +1616,7 @@ async function showDetail(id) {
       <div class="drow"><div class="dlbl">Atendidos</div><div class="dval">${r.atendidos}</div></div>
       <div class="drow"><div class="dlbl">Atividades</div><div class="dval">${r.atividades}</div></div>
       ${r.observacoes?`<div class="drow"><div class="dlbl">Observações</div><div class="dval muted">${r.observacoes}</div></div>`:''}
-      ${r.fotos && r.fotos.length ? `
-        <div style="margin-top:12px">
-          <div class="dlbl" style="margin-bottom:8px">📷 Fotos (${r.fotos.length})</div>
-          <div style="display:flex;flex-wrap:wrap;gap:8px">
-            ${r.fotos.map(f=>`<img src="${f}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer" onclick="window.open('${f}')" title="Clique para ampliar">`).join('')}
-          </div>
-        </div>` : ''}
+
     `;
     const editBtn = user.isAdmin
       ? `<button class="btn btn-primary btn-sm" onclick="openEdit('${id}')">✏️ Editar</button>`
