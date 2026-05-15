@@ -679,6 +679,17 @@ select option { background:var(--navy-mid); }
             <label>Observações (opcional)</label>
             <textarea id="f-obs" placeholder="Informações adicionais relevantes..." style="min-height:65px"></textarea>
           </div>
+          <div class="fgroup span2">
+            <label>📷 Fotos do Dia <span style="font-weight:400;color:var(--text-muted)">(até 5 fotos — aparecem no relatório)</span></label>
+            <div id="foto-drop" onclick="document.getElementById('f-fotos').click()"
+              style="border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--navy)">
+              <div style="font-size:2rem;margin-bottom:8px">📷</div>
+              <div style="font-size:.85rem;color:var(--text-muted)">Clique para selecionar fotos</div>
+              <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px">JPG, PNG — máximo 5 fotos</div>
+            </div>
+            <input type="file" id="f-fotos" accept="image/*" multiple style="display:none" onchange="previewFotos(this)">
+            <div id="foto-preview" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px"></div>
+          </div>
           <div class="fgroup span2" style="flex-direction:row;justify-content:flex-end;gap:10px;align-items:center">
             <button class="btn btn-ghost" onclick="clearForm()">Limpar</button>
             <button class="btn btn-primary btn-lg" id="btn-salvar" onclick="salvar()">💾 Salvar Registro</button>
@@ -795,6 +806,60 @@ select option { background:var(--navy-mid); }
   </div>
 </div>
 
+<!-- EDIT MODAL -->
+<div id="edit-modal" class="modal-bg hidden">
+  <div class="modal-box" style="max-width:540px">
+    <div class="modal-hd">
+      <span class="modal-ttl">✏️ Editar Registro</span>
+      <button class="modal-cls" onclick="closeEdit()">✕</button>
+    </div>
+    <div class="fgrid" id="edit-form">
+      <input type="hidden" id="edit-id">
+      <div class="fgroup">
+        <label>Data</label>
+        <input type="date" id="edit-data">
+      </div>
+      <div class="fgroup">
+        <label>Modalidade</label>
+        <select id="edit-modal-sel">
+          <option value="atletismo">🏃 Atletismo</option>
+          <option value="paraesgrima">🤺 Paraesgrima</option>
+          <option value="tiro-arco">🏹 Tiro com Arco</option>
+          <option value="parabadminton">🏸 Parabadminton</option>
+        </select>
+      </div>
+      <div class="fgroup">
+        <label>Horário de Início</label>
+        <input type="time" id="edit-inicio">
+      </div>
+      <div class="fgroup">
+        <label>Horário de Término</label>
+        <input type="time" id="edit-fim">
+      </div>
+      <div class="fgroup span2">
+        <label>Local</label>
+        <input type="text" id="edit-local">
+      </div>
+      <div class="fgroup span2">
+        <label>Pessoas Atendidas</label>
+        <textarea id="edit-atend"></textarea>
+      </div>
+      <div class="fgroup span2">
+        <label>Atividades Realizadas</label>
+        <textarea id="edit-ativ"></textarea>
+      </div>
+      <div class="fgroup span2">
+        <label>Observações</label>
+        <textarea id="edit-obs" style="min-height:65px"></textarea>
+      </div>
+      <div class="fgroup span2" style="flex-direction:row;justify-content:flex-end;gap:10px">
+        <button class="btn btn-ghost" onclick="closeEdit()">Cancelar</button>
+        <button class="btn btn-primary" id="btn-edit-salvar" onclick="salvarEdit()">💾 Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div id="toast-box"></div>
 
@@ -825,6 +890,8 @@ const EMPS = [
   { id:'carina',    name:'Carina dos Santos Reis',      initials:'CR', color:'#0891B2', pin:'2222' },
   { id:'francisco', name:'Francisco Marlon Gomes',      initials:'FM', color:'#059669', pin:'3333' },
   { id:'wirliane',  name:'Wirliane da Silva de Melo',   initials:'WM', color:'#D97706', pin:'4444' },
+  { id:'marcele',   name:'Marcele Pureza',               initials:'MP', color:'#DB2777', pin:'5555' },
+  { id:'marcos',    name:'Marcos Magalhães',             initials:'MM', color:'#0369A1', pin:'6666' },
 ];
 const ADMIN_PIN = '9999';
 
@@ -1161,18 +1228,70 @@ function initForm() {
 
   const dataEl = document.getElementById('f-data');
   dataEl.value = today;
-  dataEl.min = minStr;
-  dataEl.max = today;
+  dataEl.min   = minStr;
+  dataEl.max   = today; // não permite datas futuras
 
   const t = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   document.getElementById('f-inicio').value = t;
 }
+
+let fotosBase64 = []; // store photos as base64
 
 function clearForm() {
   ['f-modal','f-inicio','f-fim','f-local','f-atend','f-ativ','f-obs'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  fotosBase64 = [];
+  document.getElementById('f-fotos').value = '';
+  document.getElementById('foto-preview').innerHTML = '';
+}
+
+function previewFotos(input) {
+  const files = Array.from(input.files).slice(0, 5);
+  fotosBase64 = [];
+  const preview = document.getElementById('foto-preview');
+  preview.innerHTML = '';
+
+  files.forEach((file, i) => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      fotosBase64[i] = e.target.result;
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;width:90px;height:90px;';
+      wrap.innerHTML = `
+        <img src="${e.target.result}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">
+        <button onclick="removeFoto(${i})" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--red);border:none;color:white;cursor:pointer;font-size:.7rem;display:flex;align-items:center;justify-content:center">✕</button>
+      `;
+      preview.appendChild(wrap);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  if (files.length > 0) {
+    document.getElementById('foto-drop').style.borderColor = 'var(--green)';
+    document.getElementById('foto-drop').style.background = 'rgba(16,185,129,0.05)';
+  }
+}
+
+function removeFoto(idx) {
+  fotosBase64.splice(idx, 1);
+  // Re-render preview
+  const preview = document.getElementById('foto-preview');
+  preview.innerHTML = '';
+  fotosBase64.forEach((b64, i) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;width:90px;height:90px;';
+    wrap.innerHTML = `
+      <img src="${b64}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">
+      <button onclick="removeFoto(${i})" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--red);border:none;color:white;cursor:pointer;font-size:.7rem;display:flex;align-items:center;justify-content:center">✕</button>
+    `;
+    preview.appendChild(wrap);
+  });
+  if (fotosBase64.length === 0) {
+    document.getElementById('foto-drop').style.borderColor = 'var(--border)';
+    document.getElementById('foto-drop').style.background = 'var(--navy)';
+  }
 }
 
 async function salvar() {
@@ -1191,9 +1310,10 @@ async function salvar() {
 
   // Validate date: only today or up to 3 days ago
   const hoje = new Date();
-  hoje.setHours(0,0,0,0);
-  const limite = new Date(hoje);
-  limite.setDate(limite.getDate() - 3);
+  hoje.setHours(23,59,59,999); // end of today
+  const limite = new Date();
+  limite.setHours(0,0,0,0);
+  limite.setDate(limite.getDate() - 3); // 3 days ago at midnight
   const dataSel = new Date(data + 'T12:00');
   if (dataSel > hoje) {
     toast('Não é possível registrar datas futuras.', 'err'); return;
@@ -1218,6 +1338,7 @@ async function salvar() {
       atendidos:     atend,
       atividades:    ativ,
       observacoes:   obs,
+      fotos:         fotosBase64.slice(0,5),
       mes:           dt.getMonth(),
       ano:           dt.getFullYear(),
     });
@@ -1411,7 +1532,7 @@ async function loadRel() {
           <table>
             <thead><tr>
               <th>Data</th><th>Dia</th><th>Modalidade</th><th>Horário</th>
-              <th>Pessoas Atendidas</th><th>Atividades Realizadas</th><th>Observações</th>
+              <th>Pessoas Atendidas</th><th>Atividades Realizadas</th><th>Observações</th><th>Fotos</th>
             </tr></thead>
             <tbody>
               ${recs.map(r => {
@@ -1446,6 +1567,7 @@ async function loadRel() {
                   <td style="font-size:.8rem;max-width:200px">${r.atendidos}</td>
                   <td style="font-size:.8rem;max-width:220px">${r.atividades}</td>
                   <td style="font-size:.78rem" class="muted">${r.observacoes||'—'}</td>
+                  <td>${r.fotos && r.fotos.length ? r.fotos.map(f=>`<img src="${f}" style="width:50px;height:50px;object-fit:cover;border-radius:4px;margin:2px">`).join('') : '—'}</td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -1558,9 +1680,19 @@ async function showDetail(id) {
       <div class="drow"><div class="dlbl">Atendidos</div><div class="dval">${r.atendidos}</div></div>
       <div class="drow"><div class="dlbl">Atividades</div><div class="dval">${r.atividades}</div></div>
       ${r.observacoes?`<div class="drow"><div class="dlbl">Observações</div><div class="dval muted">${r.observacoes}</div></div>`:''}
+      ${r.fotos && r.fotos.length ? `
+        <div style="margin-top:12px">
+          <div class="dlbl" style="margin-bottom:8px">📷 Fotos (${r.fotos.length})</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            ${r.fotos.map(f=>`<img src="${f}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer" onclick="window.open('${f}')" title="Clique para ampliar">`).join('')}
+          </div>
+        </div>` : ''}
     `;
+    const editBtn = user.isAdmin
+      ? `<button class="btn btn-primary btn-sm" onclick="openEdit('${id}')">✏️ Editar</button>`
+      : '';
     document.getElementById('modal-acts').innerHTML =
-      `<button class="btn btn-danger btn-sm" onclick="delConfirm('${id}');closeModal()">🗑 Excluir</button>`;
+      editBtn + `<button class="btn btn-danger btn-sm" onclick="delConfirm('${id}');closeModal()">🗑 Excluir</button>`;
   } catch(e) { console.error(e); toast('Erro ao carregar detalhe','err'); closeModal(); }
 }
 
@@ -1645,6 +1777,74 @@ document.getElementById('app').addEventListener('click', e => {
   if (sb.classList.contains('open') && !sb.contains(e.target) && !hb.contains(e.target)) {
     sb.classList.remove('open');
   }
+});
+
+/* ================================================================
+   EDIT RECORD (Admin only)
+================================================================ */
+async function openEdit(id) {
+  closeModal();
+  const r = await dbGetById(id);
+  if (!r) { toast('Registro não encontrado', 'err'); return; }
+  document.getElementById('edit-id').value        = id;
+  document.getElementById('edit-data').value      = r.data || '';
+  document.getElementById('edit-modal-sel').value = r.modalidade || '';
+  document.getElementById('edit-inicio').value    = r.horario_inicio || '';
+  document.getElementById('edit-fim').value       = r.horario_fim || '';
+  document.getElementById('edit-local').value     = r.local || '';
+  document.getElementById('edit-atend').value     = r.atendidos || '';
+  document.getElementById('edit-ativ').value      = r.atividades || '';
+  document.getElementById('edit-obs').value       = r.observacoes || '';
+  document.getElementById('edit-modal').classList.remove('hidden');
+}
+
+function closeEdit() {
+  document.getElementById('edit-modal').classList.add('hidden');
+}
+
+async function salvarEdit() {
+  const id    = document.getElementById('edit-id').value;
+  const data  = document.getElementById('edit-data').value;
+  const modal = document.getElementById('edit-modal-sel').value;
+  const inicio = document.getElementById('edit-inicio').value;
+  const fim   = document.getElementById('edit-fim').value;
+  const local = document.getElementById('edit-local').value.trim();
+  const atend = document.getElementById('edit-atend').value.trim();
+  const ativ  = document.getElementById('edit-ativ').value.trim();
+  const obs   = document.getElementById('edit-obs').value.trim();
+
+  if (!data || !modal || !inicio || !atend || !ativ) {
+    toast('Preencha todos os campos obrigatórios', 'err'); return;
+  }
+
+  const btn = document.getElementById('btn-edit-salvar');
+  btn.disabled = true; btn.textContent = 'Salvando...';
+
+  try {
+    const dt = new Date(data + 'T12:00');
+    const updates = { data, modalidade:modal, horario_inicio:inicio, horario_fim:fim, local, atendidos:atend, atividades:ativ, observacoes:obs, mes:dt.getMonth(), ano:dt.getFullYear() };
+    if (useFallback) {
+      const idx = localDB.findIndex(r => r.id === id);
+      if (idx !== -1) { localDB[idx] = { ...localDB[idx], ...updates }; localStorage.setItem('sisfreq', JSON.stringify(localDB)); }
+    } else {
+      await db.collection('registros').doc(id).update(updates);
+    }
+    toast('✅ Registro atualizado!', 'ok');
+    closeEdit();
+    if (page === 'meus-registros') loadMeus();
+    if (page === 'dashboard')      loadDash();
+    if (page === 'admin')          loadAdmin();
+    if (page === 'relatorio')      loadRel();
+  } catch(e) {
+    console.error(e);
+    toast('Erro ao salvar: ' + (e.message||e.code||''), 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Salvar Alterações';
+  }
+}
+
+document.getElementById('edit-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeEdit();
 });
 
 /* ================================================================
