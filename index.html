@@ -1346,6 +1346,25 @@ async function loadRel() {
       const modCt = {};
       recs.forEach(r => modCt[r.modalidade] = (modCt[r.modalidade]||0)+1);
 
+      // Calcular total de horas computadas (limite 4h/dia por registro)
+      let totalMinComp = 0;
+      let diasCumpriram = 0;
+      let diasNaoCumpriram = 0;
+      recs.forEach(r => {
+        if (r.horario_inicio && r.horario_fim) {
+          const [hi,mi] = r.horario_inicio.split(':').map(Number);
+          const [hf,mf] = r.horario_fim.split(':').map(Number);
+          let tot = (hf*60+mf)-(hi*60+mi);
+          if (tot < 0) tot += 24*60;
+          const comp = Math.min(tot, 240);
+          totalMinComp += comp;
+          if (tot >= 240) diasCumpriram++; else diasNaoCumpriram++;
+        }
+      });
+      const totalHComp = Math.floor(totalMinComp/60);
+      const totalMComp = totalMinComp % 60;
+      const totalHorasLabel = totalHComp + 'h' + String(totalMComp).padStart(2,'0');
+
       html += `
       <div class="card" style="margin-bottom:24px;page-break-after:always">
         <!-- REPORT HEADER -->
@@ -1360,6 +1379,18 @@ async function loadRel() {
           <div class="rpt-sum-item" style="background:var(--navy-card);border:1px solid var(--border);border-radius:8px;padding:12px 18px;text-align:center">
             <div class="rpt-sum-val mono" style="font-size:1.4rem;font-weight:700">${dias.length}</div>
             <div class="xs muted rpt-sum-lbl">Dias Trabalhados</div>
+          </div>
+          <div class="rpt-sum-item" style="background:var(--navy-card);border:1px solid var(--border);border-radius:8px;padding:12px 18px;text-align:center">
+            <div class="rpt-sum-val mono" style="font-size:1.4rem;font-weight:700">${totalHorasLabel}</div>
+            <div class="xs muted rpt-sum-lbl">Total de Horas (máx. 4h/dia)</div>
+          </div>
+          <div class="rpt-sum-item" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:12px 18px;text-align:center">
+            <div class="rpt-sum-val mono" style="font-size:1.4rem;font-weight:700;color:#34D399">${diasCumpriram}</div>
+            <div class="xs rpt-sum-lbl" style="color:#34D399">✅ Dias com 4h cumpridas</div>
+          </div>
+          <div class="rpt-sum-item" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px 18px;text-align:center">
+            <div class="rpt-sum-val mono" style="font-size:1.4rem;font-weight:700;color:#FCA5A5">${diasNaoCumpriram}</div>
+            <div class="xs rpt-sum-lbl" style="color:#FCA5A5">⚠️ Dias abaixo de 4h</div>
           </div>
           <div class="rpt-sum-item" style="background:var(--navy-card);border:1px solid var(--border);border-radius:8px;padding:12px 18px;text-align:center">
             <div class="rpt-sum-val mono" style="font-size:1.4rem;font-weight:700">${recs.length}</div>
@@ -1387,11 +1418,31 @@ async function loadRel() {
                 const md = MODS[r.modalidade]||{name:r.modalidade,icon:'📋'};
                 const d  = new Date(r.data+'T12:00');
                 const ds = d.toLocaleDateString('pt-BR',{weekday:'short'});
-                return `<tr>
+                // Calcular horas trabalhadas e aplicar limite de 4h
+                let horasLabel = r.horario_inicio || '';
+                let cumpriu = false;
+                let horasReal = '';
+                if (r.horario_inicio && r.horario_fim) {
+                  const [hi, mi] = r.horario_inicio.split(':').map(Number);
+                  const [hf, mf] = r.horario_fim.split(':').map(Number);
+                  let totalMin = (hf * 60 + mf) - (hi * 60 + mi);
+                  if (totalMin < 0) totalMin += 24 * 60;
+                  const limitMin = 4 * 60; // 4 horas em minutos
+                  const compMin = Math.min(totalMin, limitMin);
+                  const hComp = Math.floor(compMin / 60);
+                  const mComp = compMin % 60;
+                  const hReal = Math.floor(totalMin / 60);
+                  const mReal = totalMin % 60;
+                  horasReal = hReal + 'h' + String(mReal).padStart(2,'0');
+                  const horasComp = hComp + 'h' + String(mComp).padStart(2,'0');
+                  cumpriu = totalMin >= limitMin;
+                  horasLabel = r.horario_inicio + ' – ' + r.horario_fim + '<br><span style="font-size:.7rem;color:' + (cumpriu ? '#34D399' : '#FCA5A5') + '">' + (cumpriu ? '✅ 4h00 computadas' : '⚠️ ' + horasReal + ' computadas') + '</span>';
+                }
+                return `<tr style="background:${cumpriu ? 'rgba(16,185,129,0.04)' : 'rgba(239,68,68,0.04)'}">
                   <td class="mono" style="font-size:.78rem;white-space:nowrap">${fmtDate(r.data)}</td>
                   <td class="xs muted" style="text-transform:capitalize">${ds}</td>
                   <td><span class="badge b-${r.modalidade}">${md.icon} ${md.name}</span></td>
-                  <td class="mono" style="font-size:.78rem;white-space:nowrap">${r.horario_inicio||''}${r.horario_fim?' – '+r.horario_fim:''}</td>
+                  <td class="mono" style="font-size:.78rem">${horasLabel}</td>
                   <td style="font-size:.8rem;max-width:200px">${r.atendidos}</td>
                   <td style="font-size:.8rem;max-width:220px">${r.atividades}</td>
                   <td style="font-size:.78rem" class="muted">${r.observacoes||'—'}</td>
